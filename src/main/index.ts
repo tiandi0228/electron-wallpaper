@@ -74,11 +74,9 @@ app.whenReady().then(() => {
       wallPaperCommand = `osascript -e 'tell application "Finder" to set desktop picture to POSIX file "${path}"'`
     }
     if (process.platform === 'win32') {
-      wallPaperCommand = `reg add "HKEY_CURRENT_USER\\Control Panel\\Desktop" /v Wallpaper /t REG_SZ /d ${path.replaceAll('/', '\\')} /f && RUNDLL32.EXE user32.dll UpdatePerUserSystemParameters`
+      wallPaperCommand = `REG ADD "HKCU\\Control Panel\\Desktop" /V Wallpaper /T REG_SZ /F /D ${path.replaceAll('/', '\\')} && REG ADD "HKCU\\Control Panel\\Desktop" /V WallpaperStyle /T REG_SZ /F /D 0 && REG ADD "HKCU\\Control Panel\\Desktop" /V TileWallpaper /T REG_SZ /F /D 1 && :: Make the changes effective immediately && %SystemRoot%\\System32\\RUNDLL32.EXE user32.dll, UpdatePerUserSystemParameters`
     }
-    dialog.showErrorBox('下载完成', '文件已保存至：' + wallPaperCommand)
     exec(wallPaperCommand, (error) => {
-      dialog.showErrorBox('错误', '文件已保存至：' + error)
       if (error) {
         mainWindow.webContents.send('wallpaper:status', false)
       } else {
