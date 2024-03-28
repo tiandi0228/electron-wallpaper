@@ -5,3 +5,6 @@
 ```
 osascript -e 'tell application "Finder" to set desktop picture to POSIX file "图片的路径"'`
 ```
+
+#### win
+在win下面更换壁纸使用命令有时刷新，有时不刷新，然后参考了这篇文章 [[传送门](https://c-nergy.be/blog/?p=15291)]

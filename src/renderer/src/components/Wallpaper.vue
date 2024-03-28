@@ -26,7 +26,8 @@ const getWallpaper = () => {
         list.value.push(item.url)
       })
       setImg.value = list.value[0]
-      window.electron.ipcRenderer.send('wallpaper:url', list.value[0])
+      // window.electron.ipcRenderer.send('wallpaper:url', list.value[0])
+      emit('chang-img', setImg.value)
     }
   })
 }
