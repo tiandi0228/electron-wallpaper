@@ -1,0 +1,46 @@
+:root {
+  color-scheme: light dark;
+}
+
+/* 浅色主题 */
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-background: #f5f5f5;
+    --button-color-background: #1186e6;
+    --text-color: #999999;
+    --text-color-button: #ffffff;
+  }
+}
+
+/* 深色主题 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #2a2a2a;
+    --button-color-background: #1186e6;
+    --text-color: #ffffff;
+    --text-color-button: #ffffff;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  font-weight: normal;
+}
+
+ul {
+  list-style: none;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  color: var(--text-color);
+  background: var(--color-background);
+  line-height: 1.6;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
