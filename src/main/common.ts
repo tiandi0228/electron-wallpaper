@@ -4,6 +4,7 @@ import { app, BrowserWindow } from 'electron'
 import fs from 'node:fs'
 import { join } from 'node:path'
 
+let macChildProcess
 let childProcess
 let childProcess1
 
@@ -16,7 +17,7 @@ const EXECUTION_OPTIONS = {
 // macos设置桌面壁纸
 export function macWallpaper(mainWindow: BrowserWindow, path: string) {
   const wallPaperCommand = `osascript -e 'tell application "Finder" to set desktop picture to POSIX file "${path}"'`
-  exec(wallPaperCommand, (error) => {
+  macChildProcess = exec(wallPaperCommand, (error) => {
     if (error) {
       mainWindow.webContents.send('wallpaper:status', false)
     } else {
@@ -97,6 +98,9 @@ export function windowWallpaper(mainWindow: BrowserWindow, path: string) {
 
 // 停止子进程
 export function stopChildProcess() {
+  if (macChildProcess) {
+    macChildProcess.kill()
+  }
   if (childProcess && childProcess1) {
     childProcess.kill()
     childProcess1.kill()
