@@ -1,8 +1,9 @@
-import { app, shell, BrowserWindow, ipcMain, nativeTheme, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, nativeTheme } from 'electron'
 import fs from 'fs'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { exec, spawn } from 'child_process'
+import fixPath from 'fix-path'
 import icon from '../../resources/icon.png?asset'
 app.commandLine.appendSwitch('disable-web-security')
 let mainWindow: BrowserWindow
@@ -78,6 +79,7 @@ app.whenReady().then(() => {
   ipcMain.on('wallpaper:change', async (_, url) => {
     const path: string = (await downloadFileToFolder(url)) as string
     if (path === '') return
+    fixPath()
     // mac系统
     if (process.platform === 'darwin') {
       const wallPaperCommand = `osascript -e 'tell application "Finder" to set desktop picture to POSIX file "${path}"'`
@@ -119,23 +121,23 @@ app.on('window-all-closed', () => {
 // windows设置桌面壁纸
 function windowWallpaper(path: string) {
   const command = `@echo off
-      set regadd=reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System"
-      %regadd% /v TileWallpaper /d "0" /f
-      %regadd% /v Wallpaper /d "${path.replaceAll('/', '\\')}" /f
-      %regadd% /v WallpaperStyle /d "2" /f
-      RunDll32.exe USER32.DLL,UpdatePerUserSystemParameters
-      exit`
+  set regadd=reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System"
+  %regadd% /v TileWallpaper /d "0" /f
+  %regadd% /v Wallpaper /d "${path.replaceAll('/', '\\')}" /f
+  %regadd% /v WallpaperStyle /d "2" /f
+  RunDll32.exe USER32.DLL,UpdatePerUserSystemParameters
+  exit`
   const commandPs1 = `$imgPath="${path.replaceAll('/', '\\')}"\n$code = @'\nusing System.Runtime.InteropServices;\nnamespace Win32{
 
-        public class Wallpaper{
-           [DllImport("user32.dll", CharSet=CharSet.Auto)]
-            static extern int SystemParametersInfo (int uAction , int uParam , string lpvParam , int fuWinIni);
+    public class Wallpaper{
+       [DllImport("user32.dll", CharSet=CharSet.Auto)]
+        static extern int SystemParametersInfo (int uAction , int uParam , string lpvParam , int fuWinIni);
 
-            public static void SetWallpaper(string thePath){
-               SystemParametersInfo(20,0,thePath,3);
-            }
-       }
-    }\n'@\nadd-type $code\n#Apply the Change on the system\n[Win32.Wallpaper]::SetWallpaper($imgPath)`
+        public static void SetWallpaper(string thePath){
+           SystemParametersInfo(20,0,thePath,3);
+        }
+   }
+}\n'@\nadd-type $code\n#Apply the Change on the system\n[Win32.Wallpaper]::SetWallpaper($imgPath)`
   const filePath = join(app.getPath('userData'), '/bat', `/win.bat`)
   try {
     fs.writeFileSync(filePath, command, 'utf-8')
@@ -156,7 +158,6 @@ function windowWallpaper(path: string) {
   child.stderr.on('data', function (data) {
     console.log('Powershell Errors: ' + data)
     mainWindow.webContents.send('wallpaper:status', false)
-    dialog.showErrorBox('提示', data)
   })
   child.on('exit', function () {
     console.log('Powershell Script finished')
@@ -172,33 +173,11 @@ function windowWallpaper(path: string) {
   child1.stderr.on('data', function (data) {
     console.log('Powershell Errors1: ' + data)
     mainWindow.webContents.send('wallpaper:status', false)
-    dialog.showErrorBox('提示1', data)
   })
   child1.on('exit', function () {
     console.log('Powershell Script finished1')
   })
   child1.stdin.end()
-  // exec(`powershell.exe -ExecutionPolicy Bypass ${filePath}`, (error) => {
-  //   if (error) {
-  //     mainWindow.webContents.send('wallpaper:status', false)
-  //   } else {
-
-  //     const filePathPs1 = join(app.getPath('userData'), '/bat', `/win.ps1`)
-  //     try {
-  //       fs.writeFileSync(filePathPs1, commandPs1, 'utf-8')
-  //     } catch (e) {
-  //       console.error('写入失败：', e)
-  //     }
-  // spawn('powershell.exe', ['-ExecutionPolicy', 'ByPass', '-File', `${filePathPs1}`])
-  // exec(`powershell.exe -ExecutionPolicy Bypass ${filePathPs1}`, (error) => {
-  //   if (error) {
-  //     mainWindow.webContents.send('wallpaper:status', false)
-  //   } else {
-  //     mainWindow.webContents.send('wallpaper:status', true)
-  //   }
-  // })
-  //   }
-  // });
 }
 
 // 下载网络图片到本地
