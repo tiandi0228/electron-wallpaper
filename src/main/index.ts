@@ -1,11 +1,12 @@
 import { app, shell, BrowserWindow, ipcMain, nativeTheme } from 'electron'
-import fs from 'fs'
-import { join } from 'path'
+import fs from 'node:fs'
+import { join } from 'node:path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { exec, spawn } from 'child_process'
-import fixPath from 'fix-path'
 import icon from '../../resources/icon.png?asset'
+import { downloadFileToFolder, macWallpaper, stopChildProcess, windowWallpaper } from './common'
+
 app.commandLine.appendSwitch('disable-web-security')
+
 let mainWindow: BrowserWindow
 
 function createWindow(): void {
@@ -69,7 +70,7 @@ app.whenReady().then(() => {
   //   downloadFileToFolder(path)
   // })
 
-  // 创建文件
+  // 创建文件夹
   const filePath = join(app.getPath('userData'), '/bat')
   fs.mkdir(filePath, { recursive: true }, (error) => {
     if (error) console.log(`mkdir path: ${filePath} err`)
@@ -77,23 +78,15 @@ app.whenReady().then(() => {
 
   // 设置壁纸
   ipcMain.on('wallpaper:change', async (_, url) => {
-    const path: string = (await downloadFileToFolder(url)) as string
+    const path: string = (await downloadFileToFolder(mainWindow, url)) as string
     if (path === '') return
-    fixPath()
     // mac系统
     if (process.platform === 'darwin') {
-      const wallPaperCommand = `osascript -e 'tell application "Finder" to set desktop picture to POSIX file "${path}"'`
-      exec(wallPaperCommand, (error) => {
-        if (error) {
-          mainWindow.webContents.send('wallpaper:status', false)
-        } else {
-          mainWindow.webContents.send('wallpaper:status', true)
-        }
-      })
+      macWallpaper(mainWindow, path)
     }
     // window系统
     if (process.platform === 'win32') {
-      windowWallpaper(path)
+      windowWallpaper(mainWindow, path)
     }
   })
 
@@ -104,6 +97,10 @@ app.whenReady().then(() => {
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+app.on('before-quit', () => {
+  stopChildProcess()
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common
@@ -117,91 +114,3 @@ app.on('window-all-closed', () => {
 
 // In this file you can include the rest of your app"s specific main process
 // code. You can also put them in separate files and require them here.
-
-// windows设置桌面壁纸
-function windowWallpaper(path: string) {
-  const command = `@echo off
-  set regadd=reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System"
-  %regadd% /v TileWallpaper /d "0" /f
-  %regadd% /v Wallpaper /d "${path.replaceAll('/', '\\')}" /f
-  %regadd% /v WallpaperStyle /d "2" /f
-  RunDll32.exe USER32.DLL,UpdatePerUserSystemParameters
-  exit`
-  const commandPs1 = `$imgPath="${path.replaceAll('/', '\\')}"\n$code = @'\nusing System.Runtime.InteropServices;\nnamespace Win32{
-
-    public class Wallpaper{
-       [DllImport("user32.dll", CharSet=CharSet.Auto)]
-        static extern int SystemParametersInfo (int uAction , int uParam , string lpvParam , int fuWinIni);
-
-        public static void SetWallpaper(string thePath){
-           SystemParametersInfo(20,0,thePath,3);
-        }
-   }
-}\n'@\nadd-type $code\n#Apply the Change on the system\n[Win32.Wallpaper]::SetWallpaper($imgPath)`
-  const filePath = join(app.getPath('userData'), '/bat', `/win.bat`)
-  try {
-    fs.writeFileSync(filePath, command, 'utf-8')
-  } catch (e) {
-    console.error('写入失败：', e)
-  }
-  const filePathPs1 = join(app.getPath('userData'), '/bat', `/win.ps1`)
-  try {
-    fs.writeFileSync(filePathPs1, commandPs1, 'utf-8')
-  } catch (e) {
-    console.error('写入失败：', e)
-  }
-  const child = spawn('powershell', [filePath], { shell: true })
-  child.stdout.on('data', function (data) {
-    console.log('Powershell Data: ' + data)
-    mainWindow.webContents.send('wallpaper:status', true)
-  })
-  child.stderr.on('data', function (data) {
-    console.log('Powershell Errors: ' + data)
-    mainWindow.webContents.send('wallpaper:status', false)
-  })
-  child.on('exit', function () {
-    console.log('Powershell Script finished')
-  })
-  child.stdin.end()
-  const child1 = spawn('powershell', ['-ExecutionPolicy', 'ByPass', '-File', `${filePathPs1}`], {
-    shell: true
-  })
-  child1.stdout.on('data', function (data) {
-    console.log('Powershell Data1: ' + data)
-    mainWindow.webContents.send('wallpaper:status', true)
-  })
-  child1.stderr.on('data', function (data) {
-    console.log('Powershell Errors1: ' + data)
-    mainWindow.webContents.send('wallpaper:status', false)
-  })
-  child1.on('exit', function () {
-    console.log('Powershell Script finished1')
-  })
-  child1.stdin.end()
-}
-
-// 下载网络图片到本地
-function downloadFileToFolder(url: string) {
-  return new Promise((resolve, reject) => {
-    mainWindow.webContents.downloadURL(url)
-    mainWindow.webContents.session.once('will-download', (_, item, webContents) => {
-      const arr = url.split('.')
-      const fileNameList = url.split('.')[arr.length - 2].split('/')
-      // 文件名
-      const fileName = fileNameList[fileNameList.length - 1]
-      // 文件后缀
-      const fileType = arr[arr.length - 1]
-      // 保存路径
-      const filePath = join(app.getPath('userData'), '/download', `${fileName}.${fileType}`)
-      item.setSavePath(filePath)
-      item.once('done', (_, state) => {
-        if (state === 'completed') {
-          webContents.send('wallpaper:done', filePath)
-          resolve(filePath || '')
-        } else {
-          reject('')
-        }
-      })
-    })
-  })
-}
