@@ -1,8 +1,7 @@
-// windows设置桌面壁纸
-import { exec, spawn } from 'node:child_process'
 import { app, BrowserWindow } from 'electron'
 import fs from 'node:fs'
 import { join } from 'node:path'
+import { exec, spawn } from 'node:child_process'
 
 let macChildProcess
 let childProcess
@@ -10,8 +9,7 @@ let childProcess1
 
 // 配置项
 const EXECUTION_OPTIONS = {
-  windowsHide: true,
-  detached: true // 让子进程独立于父进程运行
+  shell: true
 }
 
 // macos设置桌面壁纸
