@@ -3,7 +3,6 @@ import fs from 'fs'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { exec, spawn } from 'child_process'
-import fixPath from 'fix-path';
 import icon from '../../resources/icon.png?asset'
 app.commandLine.appendSwitch('disable-web-security')
 let mainWindow: BrowserWindow
@@ -71,15 +70,14 @@ app.whenReady().then(() => {
 
   // 创建文件
   const filePath = join(app.getPath('userData'), '/bat')
-  fs.mkdir(filePath, { recursive: true }, error => {
+  fs.mkdir(filePath, { recursive: true }, (error) => {
     if (error) console.log(`mkdir path: ${filePath} err`)
   })
 
   // 设置壁纸
   ipcMain.on('wallpaper:change', async (_, url) => {
-    let path: string = await downloadFileToFolder(url) as string
+    const path: string = (await downloadFileToFolder(url)) as string
     if (path === '') return
-    fixPath();
     // mac系统
     if (process.platform === 'darwin') {
       const wallPaperCommand = `osascript -e 'tell application "Finder" to set desktop picture to POSIX file "${path}"'`
@@ -93,85 +91,7 @@ app.whenReady().then(() => {
     }
     // window系统
     if (process.platform === 'win32') {
-      const command = `@echo off 
-      set regadd=reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System"
-      %regadd% /v TileWallpaper /d "0" /f 
-      %regadd% /v Wallpaper /d "${path.replaceAll('/', '\\')}" /f
-      %regadd% /v WallpaperStyle /d "2" /f 
-      RunDll32.exe USER32.DLL,UpdatePerUserSystemParameters
-      exit`
-      const commandPs1 = `$imgPath="${path.replaceAll('/', '\\')}"\n$code = @'\nusing System.Runtime.InteropServices;\nnamespace Win32{
-
-        public class Wallpaper{
-           [DllImport("user32.dll", CharSet=CharSet.Auto)]
-            static extern int SystemParametersInfo (int uAction , int uParam , string lpvParam , int fuWinIni);
-
-            public static void SetWallpaper(string thePath){
-               SystemParametersInfo(20,0,thePath,3);
-            }
-       }
-    }\n'@\nadd-type $code\n#Apply the Change on the system\n[Win32.Wallpaper]::SetWallpaper($imgPath)`
-      const filePath = join(app.getPath('userData'), '/bat', `/win.bat`)
-      try {
-        fs.writeFileSync(filePath, command, 'utf-8')
-      } catch (e) {
-        console.error('写入失败：', e)
-      }
-      const filePathPs1 = join(app.getPath('userData'), '/bat', `/win.ps1`)
-      try {
-        fs.writeFileSync(filePathPs1, commandPs1, 'utf-8')
-      } catch (e) {
-        console.error('写入失败：', e)
-      }
-      const child = spawn('powershell', [filePath], {shell: true})
-      child.stdout.on("data", function (data) {
-        console.log("Powershell Data: " + data);
-        mainWindow.webContents.send('wallpaper:status', true)
-      });
-      child.stderr.on("data", function (data) {
-        console.log("Powershell Errors: " + data);
-        mainWindow.webContents.send('wallpaper:status', false)
-        dialog.showErrorBox('提示', data)
-      });
-      child.on("exit", function () {
-        console.log("Powershell Script finished");
-      });
-      child.stdin.end();
-      const child1 = spawn('powershell', ['-ExecutionPolicy', 'ByPass', '-File', `${filePathPs1}`], {shell: true})
-      child1.stdout.on("data", function (data) {
-        console.log("Powershell Data1: " + data);
-        mainWindow.webContents.send('wallpaper:status', true)
-      });
-      child1.stderr.on("data", function (data) {
-        console.log("Powershell Errors1: " + data);
-        mainWindow.webContents.send('wallpaper:status', false)
-        dialog.showErrorBox('提示1', data)
-      });
-      child1.on("exit", function () {
-        console.log("Powershell Script finished1");
-      });
-      child1.stdin.end();
-      // exec(`powershell.exe -ExecutionPolicy Bypass ${filePath}`, (error) => {
-      //   if (error) {
-      //     mainWindow.webContents.send('wallpaper:status', false)
-      //   } else {
-
-      //     const filePathPs1 = join(app.getPath('userData'), '/bat', `/win.ps1`)
-      //     try {
-      //       fs.writeFileSync(filePathPs1, commandPs1, 'utf-8')
-      //     } catch (e) {
-      //       console.error('写入失败：', e)
-      //     }
-      //     spawn('powershell.exe', ['-ExecutionPolicy', 'ByPass', '-File', `${filePathPs1}`])
-      //     // exec(`powershell.exe -ExecutionPolicy Bypass ${filePathPs1}`, (error) => {
-      //     //   if (error) {
-      //     //     mainWindow.webContents.send('wallpaper:status', false)
-      //     //   } else {
-      //     //     mainWindow.webContents.send('wallpaper:status', true)
-      //     //   }
-      //     // })
-      //   }
-      // });
+      windowWallpaper(path)
     }
   })
 
@@ -195,6 +115,91 @@ app.on('window-all-closed', () => {
 
 // In this file you can include the rest of your app"s specific main process
 // code. You can also put them in separate files and require them here.
+
+// windows设置桌面壁纸
+function windowWallpaper(path: string) {
+  const command = `@echo off
+      set regadd=reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System"
+      %regadd% /v TileWallpaper /d "0" /f
+      %regadd% /v Wallpaper /d "${path.replaceAll('/', '\\')}" /f
+      %regadd% /v WallpaperStyle /d "2" /f
+      RunDll32.exe USER32.DLL,UpdatePerUserSystemParameters
+      exit`
+  const commandPs1 = `$imgPath="${path.replaceAll('/', '\\')}"\n$code = @'\nusing System.Runtime.InteropServices;\nnamespace Win32{
+
+        public class Wallpaper{
+           [DllImport("user32.dll", CharSet=CharSet.Auto)]
+            static extern int SystemParametersInfo (int uAction , int uParam , string lpvParam , int fuWinIni);
+
+            public static void SetWallpaper(string thePath){
+               SystemParametersInfo(20,0,thePath,3);
+            }
+       }
+    }\n'@\nadd-type $code\n#Apply the Change on the system\n[Win32.Wallpaper]::SetWallpaper($imgPath)`
+  const filePath = join(app.getPath('userData'), '/bat', `/win.bat`)
+  try {
+    fs.writeFileSync(filePath, command, 'utf-8')
+  } catch (e) {
+    console.error('写入失败：', e)
+  }
+  const filePathPs1 = join(app.getPath('userData'), '/bat', `/win.ps1`)
+  try {
+    fs.writeFileSync(filePathPs1, commandPs1, 'utf-8')
+  } catch (e) {
+    console.error('写入失败：', e)
+  }
+  const child = spawn('powershell', [filePath], { shell: true })
+  child.stdout.on('data', function (data) {
+    console.log('Powershell Data: ' + data)
+    mainWindow.webContents.send('wallpaper:status', true)
+  })
+  child.stderr.on('data', function (data) {
+    console.log('Powershell Errors: ' + data)
+    mainWindow.webContents.send('wallpaper:status', false)
+    dialog.showErrorBox('提示', data)
+  })
+  child.on('exit', function () {
+    console.log('Powershell Script finished')
+  })
+  child.stdin.end()
+  const child1 = spawn('powershell', ['-ExecutionPolicy', 'ByPass', '-File', `${filePathPs1}`], {
+    shell: true
+  })
+  child1.stdout.on('data', function (data) {
+    console.log('Powershell Data1: ' + data)
+    mainWindow.webContents.send('wallpaper:status', true)
+  })
+  child1.stderr.on('data', function (data) {
+    console.log('Powershell Errors1: ' + data)
+    mainWindow.webContents.send('wallpaper:status', false)
+    dialog.showErrorBox('提示1', data)
+  })
+  child1.on('exit', function () {
+    console.log('Powershell Script finished1')
+  })
+  child1.stdin.end()
+  // exec(`powershell.exe -ExecutionPolicy Bypass ${filePath}`, (error) => {
+  //   if (error) {
+  //     mainWindow.webContents.send('wallpaper:status', false)
+  //   } else {
+
+  //     const filePathPs1 = join(app.getPath('userData'), '/bat', `/win.ps1`)
+  //     try {
+  //       fs.writeFileSync(filePathPs1, commandPs1, 'utf-8')
+  //     } catch (e) {
+  //       console.error('写入失败：', e)
+  //     }
+  // spawn('powershell.exe', ['-ExecutionPolicy', 'ByPass', '-File', `${filePathPs1}`])
+  // exec(`powershell.exe -ExecutionPolicy Bypass ${filePathPs1}`, (error) => {
+  //   if (error) {
+  //     mainWindow.webContents.send('wallpaper:status', false)
+  //   } else {
+  //     mainWindow.webContents.send('wallpaper:status', true)
+  //   }
+  // })
+  //   }
+  // });
+}
 
 // 下载网络图片到本地
 function downloadFileToFolder(url: string) {
